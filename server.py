@@ -85,12 +85,12 @@ def send_playtime_in_every_second():
         socketio.sleep(1)
 
 
-def increase_time(remote_addr):
+def increase_time():
     global ips_with_times
     while True:
         for key, value in ips_with_times.items():
             ips_with_times[key] +=1
-            socketio.emit('remainingTimeChanged', 60 - ips_with_times[key], room=remote_addr)
+            socketio.emit('remainingTimeChanged', 60 - ips_with_times[key], room=key)
         socketio.sleep(1)
         time.sleep(1)
 
@@ -128,7 +128,6 @@ def post_song():
         player.play('http://www.youtube.com/watch?v={}'.format(video_id))
         is_first = False
 
-    threading.Thread(target=increase_time, args=[request.remote_addr]).start()
     ips_with_times[request.remote_addr] = 0
 
     return 'Ok'
@@ -136,6 +135,7 @@ def post_song():
 
 if __name__ == "__main__":
     try:
+        threading.Thread(target=increase_time).start()
         socketio.run(app, '0.0.0.0')
     except:
         pass
