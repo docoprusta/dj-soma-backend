@@ -4,9 +4,9 @@ import os
 import signal
 import shlex
 import queue
-
 import threading
 import time
+import binascii
 
 from flask_socketio import emit
 from mpv import MPV
@@ -20,7 +20,7 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-app.config['SECRET_KEY'] = '0271521ae2e214eb55e6d34d48f1d63754ecf00f7137777a43306fac9da070d5'
+app.config['SECRET_KEY'] = binascii.hexlify(os.urandom(24))
 socketio = SocketIO(app, async_mode='threading')
 
 is_first = True
@@ -32,7 +32,10 @@ time_pos = 0
 duration = 0
 prev_time = time.time()
 
-player = MPV('no-video', ytdl=True)
+if os.name == 'nt':
+    player = MPV(ytdl=True)
+else:
+    player = MPV('no-video', ytdl=True)
 
 currently_playing_youtube_id = ''
 
