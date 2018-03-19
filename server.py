@@ -91,7 +91,6 @@ def increase_time():
         for key, value in ips_with_times.items():
             ips_with_times[key] +=1
             socketio.emit('remainingTimeChanged', 60 - ips_with_times[key], room=key)
-        socketio.sleep(1)
         time.sleep(1)
 
 
