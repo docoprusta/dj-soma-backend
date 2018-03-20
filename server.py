@@ -55,12 +55,12 @@ def print_time_pos(_name, _value):
         socketio.emit('timePosChanged', time_pos_in_sec/duration_in_sec*100, broadcast=True)
         prev_time = time.time()
 
-    if time_pos == duration and time_pos != 0 and duration != 0:
-        socketio.emit('songEnded', 'asd', broadcast=True)
-        playlist.get()
-        video_id = video_ids.get()
-        player.play('http://www.youtube.com/watch?v={}'.format(video_id))
-        time.sleep(3)
+        if time_pos_in_sec == duration_in_sec - 1 and time_pos != 0 and duration != 0:
+            socketio.emit('songEnded', 'asd', broadcast=True)
+            playlist.get()
+            video_id = video_ids.get()
+            player.play('http://www.youtube.com/watch?v={}'.format(video_id))
+            time.sleep(5)
 
 
 def start_process(video_id):
@@ -91,6 +91,7 @@ def increase_time():
         for key, value in ips_with_times.items():
             ips_with_times[key] +=1
             socketio.emit('remainingTimeChanged', 60 - ips_with_times[key], room=key)
+        # socketio.sleep(1)
         time.sleep(1)
 
 
