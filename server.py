@@ -46,6 +46,7 @@ def print_time_pos(_name, _value):
     global time_pos
     global duration
     global prev_time
+    global is_first
     time_pos = player.osd.time_pos
     duration = player.osd.duration
 
@@ -58,9 +59,12 @@ def print_time_pos(_name, _value):
         if time_pos_in_sec == duration_in_sec - 2 and time_pos_in_sec != 0 and duration_in_sec != 0:
             socketio.emit('songEnded', 'asd', broadcast=True)
             playlist.get()
-            video_id = video_ids.get()
-            player.playlist_next()
-            time.sleep(5)
+            if playlist.qsize() > 0:
+                video_id = video_ids.get()
+                player.playlist_next()
+                time.sleep(5)
+            else:
+                is_first = True
 
 
 def start_process(video_id):
