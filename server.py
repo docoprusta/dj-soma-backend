@@ -108,6 +108,14 @@ def joined():
     join_room(request.remote_addr)
 
 
+@app.route('/volume', methods=['PUT'])
+def set_volume():
+    putted_dict = request.json
+    value = putted_dict.get('value', player.osd.volume)
+    if 0 < value < 100: 
+        player._set_property('ao-volume', value)
+    return "OK"
+
 @app.route('/song', methods=['POST'])
 def post_song():
     global currently_playing_youtube_id
