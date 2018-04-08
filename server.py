@@ -1,5 +1,4 @@
 import subprocess
-import psutil
 import os
 import signal
 import shlex
@@ -47,6 +46,8 @@ def print_time_pos(_name, _value):
     global duration
     global prev_time
     global is_first
+    global currently_playing_youtube_id
+
     time_pos = player.osd.time_pos
     duration = player.osd.duration
 
@@ -57,6 +58,7 @@ def print_time_pos(_name, _value):
         prev_time = time.time()
 
         if time_pos_in_sec == duration_in_sec - 2 and time_pos_in_sec != 0 and duration_in_sec != 0:
+            currently_playing_youtube_id = ''
             socketio.emit('songEnded', 'asd', broadcast=True)
             playlist.get()
             if playlist.qsize() > 0:
