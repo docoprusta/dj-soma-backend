@@ -100,6 +100,12 @@ def set_volume():
         player._set_property('ao-volume', value)
     return "OK"
 
+
+@app.route('/volume', methods=['GET'])
+def get_volume():
+    return json.dumps({"volume": player._get_property('ao-volume')})
+
+
 @app.route('/song', methods=['POST'])
 def post_song():
     global currently_playing_youtube_id
