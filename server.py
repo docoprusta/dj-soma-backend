@@ -69,26 +69,9 @@ def print_time_pos(_name, _value):
                 is_first = True
 
 
-def start_process(video_id):
-    currently_playing_youtube_id = video_id
-    player.play('http://www.youtube.com/watch?v={}'.format(video_id))
-    send_playtime_in_every_second()
-
-
 @app.route('/playlist', methods=['GET'])
 def get_playlist():
     return json.dumps(list(playlist.queue))
-
-
-def send_playtime_in_every_second():
-    print(time_pos, duration)
-    while True:
-        print(time_pos, duration)
-        if time_pos == duration and time_pos != 0 and duration != 0:
-            break
-        print(is_first)
-        socketio.send('timePosChanged', time_pos, broadcast=True)
-        socketio.sleep(1)
 
 
 def increase_time():
@@ -97,7 +80,6 @@ def increase_time():
         for key, value in ips_with_times.items():
             ips_with_times[key] +=1
             socketio.emit('remainingTimeChanged', 60 - ips_with_times[key], room=key)
-        # socketio.sleep(1)
         time.sleep(1)
 
 
