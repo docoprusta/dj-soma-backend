@@ -97,13 +97,23 @@ def set_volume():
     putted_dict = request.json
     value = putted_dict.get('value', player.osd.volume)
     if 0 < value < 100: 
-        player._set_property('ao-volume', value)
+        try:
+            player._set_property('ao-volume', value)
+            socketio.emit('volumeChanged', value, broadcast=True)
+        except:
+            return json.dumps({"message": "Mpv is not playing anything"}), 503
     return "OK"
 
 
 @app.route('/volume', methods=['GET'])
 def get_volume():
-    return json.dumps({"volume": player._get_property('ao-volume')})
+    try:
+        volume = player._get_property('ao-volume')
+        return json.dumps({"volume": volume})
+    except:
+        return json.dumps({"message": "Mpv is not playing anything"}), 503
+
+    
 
 
 @app.route('/song', methods=['POST'])
