@@ -15,6 +15,7 @@ from flask_socketio import SocketIO
 from flask_socketio import join_room
 from flask import request
 from flask import json
+from flask import jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -23,6 +24,7 @@ app.config['SECRET_KEY'] = binascii.hexlify(os.urandom(24))
 socketio = SocketIO(app, async_mode='threading')
 
 is_first = True
+autoplay = False
 
 playlist = queue.Queue()
 video_ids = queue.Queue()
@@ -71,7 +73,7 @@ def print_time_pos(_name, _value):
 
 @app.route('/playlist', methods=['GET'])
 def get_playlist():
-    return json.dumps(list(playlist.queue))
+    return jsonify(list(playlist.queue))
 
 
 def increase_time():
@@ -101,7 +103,7 @@ def set_volume():
             player._set_property('ao-volume', value)
             socketio.emit('volumeChanged', value, broadcast=True)
         except:
-            return json.dumps({"message": "Mpv is not playing anything"}), 503
+            return jsonify({"message": "Mpv is not playing anything"}), 503
     return "OK"
 
 
