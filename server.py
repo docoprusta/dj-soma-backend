@@ -111,11 +111,21 @@ def set_volume():
 def get_volume():
     try:
         volume = player._get_property('ao-volume')
-        return json.dumps({"volume": volume})
+        return jsonify({"volume": volume})
     except:
-        return json.dumps({"message": "Mpv is not playing anything"}), 503
+        return jsonify({"message": "Mpv is not playing anything"}), 503
 
-    
+
+@app.route('/autoplay', methods=['GET'])
+def get_autoplay():
+    return jsonify({'value': autoplay})
+
+
+@app.route('/autoplay', methods=['PUT'])
+def set_autoplay():
+    putted_dict = request.json
+    autoplay = putted_dict.get('value')
+    return 'Ok'
 
 
 @app.route('/song', methods=['POST'])
