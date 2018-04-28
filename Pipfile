@@ -11,6 +11,8 @@ Flask = "==0.12.2"
 Flask-Cors = "==3.0.3"
 Flask-SocketIO = "==2.9.3"
 psutil = "*"
+requests = "*"
+isodate = "*"
 
 [requires]
 python_version = "3.5"

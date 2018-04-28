@@ -6,6 +6,9 @@ import queue
 import threading
 import time
 import binascii
+import isodate
+import requests
+import re
 
 from flask_socketio import emit
 from mpv import MPV
@@ -22,6 +25,8 @@ app = Flask(__name__)
 CORS(app)
 app.config['SECRET_KEY'] = binascii.hexlify(os.urandom(24))
 socketio = SocketIO(app, async_mode='threading')
+
+youtube_api_key = 'AIzaSyDnXC_k6YB-A8H4GC3swaqO7lzFXPQGjTQ'
 
 is_first = True
 autoplay = False
@@ -60,15 +65,28 @@ def print_time_pos(_name, _value):
         prev_time = time.time()
 
         if time_pos_in_sec == duration_in_sec - 2 and time_pos_in_sec != 0 and duration_in_sec != 0:
+            video_id_to_search = currently_playing_youtube_id
             currently_playing_youtube_id = ''
             socketio.emit('songEnded', 'asd', broadcast=True)
             playlist.get()
+            
+            print(playlist.qsize())
             if playlist.qsize() > 0:
                 video_id = video_ids.get()
                 player.playlist_next()
                 time.sleep(5)
             else:
                 is_first = True
+                if autoplay:
+                    auto_video_json = get_next_related_video_dict(video_id_to_search)
+                    playlist.put(auto_video_json)
+                    video_id = auto_video_json.get('youtubeId')
+                    player.playlist_append('http://www.youtube.com/watch?v={}'.format(video_id))
+                    video_ids.put(video_id)
+                    socketio.emit('songAdded', json.dumps(auto_video_json), json=True, broadcast=True)
+                    video_id = video_ids.get()
+                    currently_playing_youtube_id = video_id
+                    player.play('http://www.youtube.com/watch?v={}'.format(video_id))
 
 
 @app.route('/playlist', methods=['GET'])
@@ -123,9 +141,29 @@ def get_autoplay():
 
 @app.route('/autoplay', methods=['PUT'])
 def set_autoplay():
+    global autoplay
     putted_dict = request.json
     autoplay = putted_dict.get('value')
+    socketio.emit('autoplayChanged', autoplay, broadcast=True)
     return 'Ok'
+
+
+def get_next_related_video_dict(video_id):
+    response_get = requests.get('https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId={}&type=video&key={}'.format(video_id, youtube_api_key))
+    item = response_get.json().get('items')[0]
+
+    response_get_duration = requests.get('https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id={}&key={}'.format(item.get('id').get('videoId'), youtube_api_key))
+    duration_str = response_get_duration.json().get('items')[0].get('contentDetails').get('duration')
+    print(video_id)
+    print(response_get_duration.json().get('items')[0])
+    duration_timedelta = isodate.parse_duration(duration_str)
+
+    duration_sec = (int(duration_timedelta.total_seconds()))
+
+    snippet = item.get('snippet')
+
+    auto_video_dict = {'duration': duration_sec, 'youtubeId': item.get('id').get('videoId'), 'title': snippet.get('title'), 'imageUrl': snippet.get('thumbnails').get('default').get('url')}
+    return auto_video_dict
 
 
 @app.route('/song', methods=['POST'])
@@ -135,6 +173,7 @@ def post_song():
     global ips_with_times
 
     posted_dict = request.json
+    print(posted_dict)
     if posted_dict.get('youtubeId') in list(video_ids.queue) or \
          currently_playing_youtube_id == posted_dict.get('youtubeId'):
         return 'Video is already added', 409
