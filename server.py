@@ -4,6 +4,7 @@ import signal
 import shlex
 import queue
 import threading
+import random
 import time
 import binascii
 import isodate
@@ -87,6 +88,7 @@ def print_time_pos(_name, _value):
                     video_id = video_ids.get()
                     currently_playing_youtube_id = video_id
                     player.play('http://www.youtube.com/watch?v={}'.format(video_id))
+                    is_first = False
 
 
 @app.route('/playlist', methods=['GET'])
@@ -149,20 +151,28 @@ def set_autoplay():
 
 
 def get_next_related_video_dict(video_id):
-    response_get = requests.get('https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId={}&type=video&key={}'.format(video_id, youtube_api_key))
-    item = response_get.json().get('items')[0]
 
-    response_get_duration = requests.get('https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id={}&key={}'.format(item.get('id').get('videoId'), youtube_api_key))
-    duration_str = response_get_duration.json().get('items')[0].get('contentDetails').get('duration')
-    print(video_id)
-    print(response_get_duration.json().get('items')[0])
-    duration_timedelta = isodate.parse_duration(duration_str)
+    duration_sec = 601
 
-    duration_sec = (int(duration_timedelta.total_seconds()))
+    while duration_sec > 600: 
+        print(duration_sec)
+        response_get = requests.get('https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId={}&type=video&key={}'.format(video_id, youtube_api_key))
 
-    snippet = item.get('snippet')
+        items_len = len(response_get.json().get('items'))
+        random_index = random.randint(0, items_len-1)
+        item = response_get.json().get('items')[random_index]
+    
+        response_get_duration = requests.get('https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id={}&key={}'.format(item.get('id').get('videoId'), youtube_api_key))
+     
+        duration_str = response_get_duration.json().get('items')[0].get('contentDetails').get('duration')
+        duration_timedelta = isodate.parse_duration(duration_str)
 
-    auto_video_dict = {'duration': duration_sec, 'youtubeId': item.get('id').get('videoId'), 'title': snippet.get('title'), 'imageUrl': snippet.get('thumbnails').get('default').get('url')}
+        duration_sec = (int(duration_timedelta.total_seconds()))
+
+        snippet = item.get('snippet')
+
+        auto_video_dict = {'duration': duration_sec, 'youtubeId': item.get('id').get('videoId'), 'title': snippet.get('title'), 'imageUrl': snippet.get('thumbnails').get('default').get('url')}
+    
     return auto_video_dict
 
 
