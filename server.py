@@ -37,6 +37,8 @@ video_ids = queue.Queue()
 
 waiting_time = 60
 
+autoplay_history = []
+
 time_pos = 0
 duration = 0
 prev_time = time.time()
@@ -82,6 +84,7 @@ def print_time_pos(_name, _value):
                     auto_video_json = get_next_related_video_dict(video_id_to_search)
                     playlist.put(auto_video_json)
                     video_id = auto_video_json.get('youtubeId')
+                    autoplay_history.append(video_id)
                     player.playlist_append('http://www.youtube.com/watch?v={}'.format(video_id))
                     video_ids.put(video_id)
                     socketio.emit('songAdded', json.dumps(auto_video_json), json=True, broadcast=True)
@@ -142,7 +145,9 @@ def get_autoplay():
 @app.route('/autoplay', methods=['PUT'])
 def set_autoplay():
     global autoplay
+    global autoplay_history
     putted_dict = request.json
+    autoplay_history.clear()
     autoplay = putted_dict.get('value')
     socketio.emit('autoplayChanged', autoplay, broadcast=True)
     return 'Ok'
@@ -181,6 +186,9 @@ def get_next_related_video_dict(video_id):
         duration_sec = (int(duration_timedelta.total_seconds()))
 
         snippet = item.get('snippet')
+
+        if 'live' in snippet.get('title').lower() or item.get('id').get('videoId') in autoplay_history:
+            duration_sec = 601
 
         auto_video_dict = {'duration': duration_sec, 'youtubeId': item.get('id').get('videoId'), 'title': snippet.get('title'), 'imageUrl': snippet.get('thumbnails').get('default').get('url')}
     
