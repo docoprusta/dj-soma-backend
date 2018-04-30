@@ -35,14 +35,16 @@ autoplay = False
 playlist = queue.Queue()
 video_ids = queue.Queue()
 
+waiting_time = 60
+
 time_pos = 0
 duration = 0
 prev_time = time.time()
 
 if os.name == 'nt':
-    player = MPV(ytdl=True)
+    player = MPV(ytdl=True, volume=50)
 else:
-    player = MPV('no-video', ytdl=True)
+    player = MPV('no-video', ytdl=True, volume=50)
 
 currently_playing_youtube_id = ''
 
