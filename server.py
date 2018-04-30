@@ -100,16 +100,14 @@ def increase_time():
     while True:
         for key, value in ips_with_times.items():
             ips_with_times[key] +=1
-            socketio.emit('remainingTimeChanged', 60 - ips_with_times[key], room=key)
+            socketio.emit('remainingTimeChanged', waiting_time - ips_with_times[key], room=key)
         time.sleep(1)
 
 
 @socketio.on('joined')
 def joined():
-    print(request.remote_addr not in ips_with_times)
     if request.remote_addr not in ips_with_times:
         ips_with_times[request.remote_addr] = 61
-    print('joined ' + request.remote_addr)
     join_room(request.remote_addr)
 
 
@@ -149,12 +147,25 @@ def set_autoplay():
     return 'Ok'
 
 
+@app.route('/waiting-time', methods=['GET'])
+def get_waiting_time():
+    return jsonify({'value': waiting_time})
+
+
+@app.route('/waiting-time', methods=['PUT'])
+def set_waiting_time():
+    global waiting_time
+    putted_dict = request.json
+    waiting_time = int(putted_dict.get('value'))
+    socketio.emit('waitingTimeChanged', waiting_time, broadcast=True)
+    return 'Ok'
+
+
 def get_next_related_video_dict(video_id):
 
     duration_sec = 601
 
     while duration_sec > 600: 
-        print(duration_sec)
         response_get = requests.get('https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId={}&type=video&key={}'.format(video_id, youtube_api_key))
 
         items_len = len(response_get.json().get('items'))
@@ -182,12 +193,11 @@ def post_song():
     global ips_with_times
 
     posted_dict = request.json
-    print(posted_dict)
     if posted_dict.get('youtubeId') in list(video_ids.queue) or \
          currently_playing_youtube_id == posted_dict.get('youtubeId'):
         return 'Video is already added', 409
     
-    if ips_with_times.get(request.remote_addr, 61) < 60:
+    if ips_with_times.get(request.remote_addr, waiting_time + 1) < waiting_time:
         return 'asd', 429
     
     playlist.put(posted_dict)
