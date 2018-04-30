@@ -87,6 +87,7 @@ def print_time_pos(_name, _value):
                     socketio.emit('songAdded', json.dumps(auto_video_json), json=True, broadcast=True)
                     video_id = video_ids.get()
                     player.play('http://www.youtube.com/watch?v={}'.format(video_id))
+                    currently_playing_youtube_id = video_id
                     is_first = False
 
 
