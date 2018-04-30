@@ -69,11 +69,9 @@ def print_time_pos(_name, _value):
 
         if time_pos_in_sec == duration_in_sec - 2 and time_pos_in_sec != 0 and duration_in_sec != 0:
             video_id_to_search = currently_playing_youtube_id
-            currently_playing_youtube_id = ''
             socketio.emit('songEnded', 'asd', broadcast=True)
             playlist.get()
             
-            print(playlist.qsize())
             if playlist.qsize() > 0:
                 video_id = video_ids.get()
                 player.playlist_next()
@@ -88,7 +86,6 @@ def print_time_pos(_name, _value):
                     video_ids.put(video_id)
                     socketio.emit('songAdded', json.dumps(auto_video_json), json=True, broadcast=True)
                     video_id = video_ids.get()
-                    currently_playing_youtube_id = video_id
                     player.play('http://www.youtube.com/watch?v={}'.format(video_id))
                     is_first = False
 
@@ -200,10 +197,10 @@ def post_song():
     socketio.emit('songAdded', json.dumps(posted_dict), json=True, broadcast=True)
     if is_first or playlist.qsize() == 0:
         video_id = video_ids.get()
-        currently_playing_youtube_id = video_id
         player.play('http://www.youtube.com/watch?v={}'.format(video_id))
         is_first = False
 
+    currently_playing_youtube_id = video_id
     ips_with_times[request.remote_addr] = 0
 
     return 'Ok'
