@@ -76,6 +76,7 @@ def print_time_pos(_name, _value):
             
             if playlist.qsize() > 0:
                 video_id = video_ids.get()
+                currently_playing_youtube_id = video_id
                 player.playlist_next()
                 time.sleep(5)
             else:
@@ -171,7 +172,7 @@ def get_next_related_video_dict(video_id):
 
     duration_sec = 601
 
-    while duration_sec > 600: 
+    while duration_sec > 600 or duration_sec < 1: 
         response_get = requests.get('https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId={}&type=video&key={}'.format(video_id, youtube_api_key))
 
         items_len = len(response_get.json().get('items'))
@@ -202,6 +203,9 @@ def post_song():
     global ips_with_times
 
     posted_dict = request.json
+    print(posted_dict.get('youtubeId'))
+    print('current: {}'.format(currently_playing_youtube_id))
+    print('video ids: {}'.format(list(video_ids.queue)))
     if posted_dict.get('youtubeId') in list(video_ids.queue) or \
          currently_playing_youtube_id == posted_dict.get('youtubeId'):
         return 'Video is already added', 409
@@ -218,10 +222,50 @@ def post_song():
         video_id = video_ids.get()
         player.play('http://www.youtube.com/watch?v={}'.format(video_id))
         is_first = False
+        currently_playing_youtube_id = video_id
 
-    currently_playing_youtube_id = video_id
     ips_with_times[request.remote_addr] = 0
 
+    return 'Ok'
+
+
+@app.route('/song', methods=['DELETE'])
+def delete_song():
+    global currently_playing_youtube_id
+    global is_first
+    posted_dict = request.json
+    youtube_id = posted_dict.get('youtubeId')
+
+    video_ids_list = list(video_ids.queue)
+
+    if youtube_id not in video_ids_list and \
+         currently_playing_youtube_id != posted_dict.get('youtubeId'):
+        return 'Video is already deleted', 409
+
+    index = player.playlist_filenames.index('http://www.youtube.com/watch?v={}'.format(youtube_id))
+
+    player.playlist_remove(index)
+
+    playlist_list = list(playlist.queue)
+    playlist_list = [item for item in playlist_list if youtube_id != item.get('youtubeId')]
+
+    playlist.queue.clear()
+    [playlist.put(item) for item in playlist_list]
+
+    print(video_ids_list)
+    if youtube_id in video_ids_list:
+        video_ids_list.remove(youtube_id)
+        video_ids.queue.clear()
+        [video_ids.put(item) for item in video_ids_list]
+
+    print(list(video_ids.queue))
+    print(player.playlist_filenames)
+
+    if playlist.qsize() < 1:
+        is_first = True
+        currently_playing_youtube_id = ''
+        
+    socketio.emit('songDeleted', youtube_id, broadcast=True)
     return 'Ok'
 
 
