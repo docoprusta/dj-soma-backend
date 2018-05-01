@@ -52,10 +52,6 @@ currently_playing_youtube_id = ''
 
 ips_with_times = {}
 
-@player.property_observer('volume')
-def my_handler(_name, _value):
-    print(_value)
-
 @player.property_observer('time-pos')
 def print_time_pos(_name, _value):
     global time_pos
@@ -170,6 +166,34 @@ def set_waiting_time():
     putted_dict = request.json
     waiting_time = int(putted_dict.get('value'))
     socketio.emit('waitingTimeChanged', waiting_time, broadcast=True)
+    return 'Ok'
+
+
+@app.route('/next-song', methods=['GET'])
+def next_song():
+    global is_first
+    global currently_playing_youtube_id
+    global video_ids
+    global playlist
+
+    video_ids.queue.clear()
+    playlist.queue.clear()
+    player.playlist_clear()
+    
+    auto_video_json = get_next_related_video_dict(currently_playing_youtube_id)
+    playlist.put(auto_video_json)
+    video_id = auto_video_json.get('youtubeId')
+    autoplay_history.append(video_id)
+    player.playlist_append('http://www.youtube.com/watch?v={}'.format(video_id))
+    video_ids.put(video_id)
+    socketio.emit('nextSongAdded', json.dumps(auto_video_json), json=True, broadcast=True)
+    video_id = video_ids.get()
+    player.play('http://www.youtube.com/watch?v={}'.format(video_id))
+    currently_playing_youtube_id = video_id
+    is_first = False
+
+    print('asd')
+
     return 'Ok'
 
 
