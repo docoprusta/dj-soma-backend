@@ -52,6 +52,10 @@ currently_playing_youtube_id = ''
 
 ips_with_times = {}
 
+@player.property_observer('volume')
+def my_handler(_name, _value):
+    print(_value)
+
 @player.property_observer('time-pos')
 def print_time_pos(_name, _value):
     global time_pos
@@ -120,9 +124,10 @@ def joined():
 def set_volume():
     putted_dict = request.json
     value = putted_dict.get('value', player.osd.volume)
+    print(value)
     if 0 < value < 100: 
         try:
-            player._set_property('ao-volume', value)
+            player._set_property('volume', value)
             socketio.emit('volumeChanged', value, broadcast=True)
         except:
             return jsonify({"message": "Mpv is not playing anything"}), 503
