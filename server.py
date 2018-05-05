@@ -10,6 +10,8 @@ import binascii
 import isodate
 import requests
 import re
+import eventlet
+eventlet.monkey_patch(os=False, thread=False)
 
 from flask_socketio import emit
 from mpv import MPV
@@ -25,7 +27,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 app.config['SECRET_KEY'] = binascii.hexlify(os.urandom(24))
-socketio = SocketIO(app, async_mode='threading')
+socketio = SocketIO(app, async_mode='eventlet')
 
 youtube_api_key = 'AIzaSyDnXC_k6YB-A8H4GC3swaqO7lzFXPQGjTQ'
 
@@ -52,11 +54,21 @@ currently_playing_youtube_id = ''
 
 ips_with_times = {}
 
+buff = 0
+
+def song_ended():
+    socketio.emit('songEnded', 'asd', broadcast=True)
+
+
+def song_added(auto_video_json):
+    socketio.emit('songAdded', json.dumps(auto_video_json), json=True, broadcast=True)
+
 @player.property_observer('time-pos')
 def print_time_pos(_name, _value):
     global time_pos
     global duration
     global prev_time
+    global buff
     global is_first
     global currently_playing_youtube_id
 
@@ -66,12 +78,14 @@ def print_time_pos(_name, _value):
     if (time.time() - prev_time) >= 1 and time_pos is not None and duration is not None:
         time_pos_in_sec = sum(x * int(t) for x, t in zip([3600, 60, 1], time_pos.split(":"))) 
         duration_in_sec = sum(x * int(t) for x, t in zip([3600, 60, 1], duration.split(":"))) 
-        socketio.emit('timePosChanged', time_pos_in_sec/duration_in_sec*100, broadcast=True)
+
+        buff = time_pos_in_sec/duration_in_sec*100
+        
         prev_time = time.time()
 
         if time_pos_in_sec == duration_in_sec - 2 and time_pos_in_sec != 0 and duration_in_sec != 0:
             video_id_to_search = currently_playing_youtube_id
-            socketio.emit('songEnded', 'asd', broadcast=True)
+            eventlet.spawn(song_ended)
             playlist.get()
             
             if playlist.qsize() > 0:
@@ -88,7 +102,7 @@ def print_time_pos(_name, _value):
                     autoplay_history.append(video_id)
                     player.playlist_append('http://www.youtube.com/watch?v={}'.format(video_id))
                     video_ids.put(video_id)
-                    socketio.emit('songAdded', json.dumps(auto_video_json), json=True, broadcast=True)
+                    eventlet.spawn(song_added, auto_video_json)
                     video_id = video_ids.get()
                     player.play('http://www.youtube.com/watch?v={}'.format(video_id))
                     currently_playing_youtube_id = video_id
@@ -107,6 +121,10 @@ def increase_time():
             ips_with_times[key] +=1
             socketio.emit('remainingTimeChanged', waiting_time - ips_with_times[key], room=key)
         time.sleep(1)
+
+
+def volume_changed():
+    
 
 
 @socketio.on('joined')
@@ -260,6 +278,7 @@ def post_song():
 
 @app.route('/song', methods=['DELETE'])
 def delete_song():
+    eventlet.spawn(test)
     global currently_playing_youtube_id
     global is_first
     posted_dict = request.json
@@ -298,9 +317,15 @@ def delete_song():
     return 'Ok'
 
 
+def test():
+    while True:
+        socketio.emit('timePosChanged', int(buff), broadcast=True)
+        eventlet.sleep(1)
+
 if __name__ == "__main__":
     try:
-        threading.Thread(target=increase_time).start()
+        eventlet.spawn(increase_time)
+        eventlet.spawn(test)
         socketio.run(app, '0.0.0.0')
     except:
         pass

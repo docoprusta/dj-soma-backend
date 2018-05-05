@@ -1,5 +1,0 @@
-Flask==0.12.2
-Flask-Cors==3.0.3
-Flask-SocketIO==2.9.3
-python-mpv==0.3.8
-
