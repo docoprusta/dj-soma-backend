@@ -2,8 +2,6 @@ import subprocess
 import os
 import signal
 import shlex
-import queue
-import threading
 import random
 import time
 import binascii
@@ -33,9 +31,12 @@ youtube_api_key = 'AIzaSyDnXC_k6YB-A8H4GC3swaqO7lzFXPQGjTQ'
 
 is_first = True
 autoplay = False
+song_ended = False
+song_added = False
+auto_video_json = ''
 
-playlist = queue.Queue()
-video_ids = queue.Queue()
+playlist = eventlet.queue.Queue()
+video_ids = eventlet.queue.Queue()
 
 waiting_time = 60
 
@@ -56,21 +57,17 @@ ips_with_times = {}
 
 buff = 0
 
-def song_ended():
-    socketio.emit('songEnded', 'asd', broadcast=True)
-
-
-def song_added(auto_video_json):
-    socketio.emit('songAdded', json.dumps(auto_video_json), json=True, broadcast=True)
-
 @player.property_observer('time-pos')
 def print_time_pos(_name, _value):
     global time_pos
     global duration
     global prev_time
     global buff
+    global song_added
     global is_first
     global currently_playing_youtube_id
+    global song_ended
+    global auto_video_json
 
     time_pos = player.osd.time_pos
     duration = player.osd.duration
@@ -85,7 +82,7 @@ def print_time_pos(_name, _value):
 
         if time_pos_in_sec == duration_in_sec - 2 and time_pos_in_sec != 0 and duration_in_sec != 0:
             video_id_to_search = currently_playing_youtube_id
-            eventlet.spawn(song_ended)
+            song_ended = True
             playlist.get()
             
             if playlist.qsize() > 0:
@@ -97,12 +94,12 @@ def print_time_pos(_name, _value):
                 is_first = True
                 if autoplay:
                     auto_video_json = get_next_related_video_dict(video_id_to_search)
+                    song_added = True
                     playlist.put(auto_video_json)
                     video_id = auto_video_json.get('youtubeId')
                     autoplay_history.append(video_id)
                     player.playlist_append('http://www.youtube.com/watch?v={}'.format(video_id))
                     video_ids.put(video_id)
-                    eventlet.spawn(song_added, auto_video_json)
                     video_id = video_ids.get()
                     player.play('http://www.youtube.com/watch?v={}'.format(video_id))
                     currently_playing_youtube_id = video_id
@@ -123,10 +120,6 @@ def increase_time():
         time.sleep(1)
 
 
-def volume_changed():
-    
-
-
 @socketio.on('joined')
 def joined():
     if request.remote_addr not in ips_with_times:
@@ -138,7 +131,6 @@ def joined():
 def set_volume():
     putted_dict = request.json
     value = putted_dict.get('value', player.osd.volume)
-    print(value)
     if 0 < value < 100: 
         try:
             player._set_property('volume', value)
@@ -151,7 +143,7 @@ def set_volume():
 @app.route('/volume', methods=['GET'])
 def get_volume():
     try:
-        volume = player._get_property('ao-volume')
+        volume = player._get_property('volume')
         return jsonify({"volume": volume})
     except:
         return jsonify({"message": "Mpv is not playing anything"}), 503
@@ -194,6 +186,7 @@ def next_song():
     global video_ids
     global playlist
 
+    print(currently_playing_youtube_id)
     video_ids.queue.clear()
     playlist.queue.clear()
     player.playlist_clear()
@@ -210,14 +203,13 @@ def next_song():
     currently_playing_youtube_id = video_id
     is_first = False
 
-    print('asd')
-
     return 'Ok'
 
 
 def get_next_related_video_dict(video_id):
 
     duration_sec = 601
+    start_time = time.time()
 
     while duration_sec > 600 or duration_sec < 1: 
         response_get = requests.get('https://www.googleapis.com/youtube/v3/search?part=snippet&relatedToVideoId={}&type=video&key={}'.format(video_id, youtube_api_key))
@@ -239,7 +231,10 @@ def get_next_related_video_dict(video_id):
             duration_sec = 601
 
         auto_video_dict = {'duration': duration_sec, 'youtubeId': item.get('id').get('videoId'), 'title': snippet.get('title'), 'imageUrl': snippet.get('thumbnails').get('default').get('url')}
-    
+
+        if time.time() - start_time > 3:
+            break
+            autoplay_history.clear()
     return auto_video_dict
 
 
@@ -250,9 +245,6 @@ def post_song():
     global ips_with_times
 
     posted_dict = request.json
-    print(posted_dict.get('youtubeId'))
-    print('current: {}'.format(currently_playing_youtube_id))
-    print('video ids: {}'.format(list(video_ids.queue)))
     if posted_dict.get('youtubeId') in list(video_ids.queue) or \
          currently_playing_youtube_id == posted_dict.get('youtubeId'):
         return 'Video is already added', 409
@@ -278,9 +270,9 @@ def post_song():
 
 @app.route('/song', methods=['DELETE'])
 def delete_song():
-    eventlet.spawn(test)
     global currently_playing_youtube_id
     global is_first
+
     posted_dict = request.json
     youtube_id = posted_dict.get('youtubeId')
 
@@ -300,32 +292,57 @@ def delete_song():
     playlist.queue.clear()
     [playlist.put(item) for item in playlist_list]
 
-    print(video_ids_list)
     if youtube_id in video_ids_list:
         video_ids_list.remove(youtube_id)
         video_ids.queue.clear()
         [video_ids.put(item) for item in video_ids_list]
 
-    print(list(video_ids.queue))
-    print(player.playlist_filenames)
-
     if playlist.qsize() < 1:
         is_first = True
         currently_playing_youtube_id = ''
+    else:
+        currently_playing_youtube_id = playlist_list[0]['youtubeId']
         
     socketio.emit('songDeleted', youtube_id, broadcast=True)
     return 'Ok'
 
 
-def test():
+def check_song_ended():
+    global buff
+    global currently_playing_youtube_id
+    global song_ended
+
     while True:
-        socketio.emit('timePosChanged', int(buff), broadcast=True)
+        if song_ended:
+            buff = 100
+            socketio.emit('songEnded', 'asd', broadcast=True)
+            eventlet.sleep(1)
+            buff = 0
+            song_ended = False
+        eventlet.sleep(1)
+
+
+def check_song_added():
+    global song_added
+
+    while True:
+        if song_added:
+            socketio.emit('songAdded', json.dumps(auto_video_json), json=True, broadcast=True)
+            song_added = False
+        eventlet.sleep(1)
+
+
+def time_pos_changed():
+    while True:
+        if 0 < int(buff) < 100:
+            socketio.emit('timePosChanged', int(buff), broadcast=True)
         eventlet.sleep(1)
 
 if __name__ == "__main__":
     try:
         eventlet.spawn(increase_time)
-        eventlet.spawn(test)
+        eventlet.spawn(time_pos_changed)
+        eventlet.spawn(check_song_ended)
         socketio.run(app, '0.0.0.0')
     except:
         pass
